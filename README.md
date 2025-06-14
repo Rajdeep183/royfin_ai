@@ -1,4 +1,3 @@
-
 # 🚀 RoyFin AI - Next-Generation Stock Prediction Platform
 
 RoyFin AI is a full-stack, production-ready platform for intelligent stock market forecasting. It combines advanced machine learning (LSTM, Transformer, Quantum-inspired, Ensemble), real-time data, and a modern web UI to deliver actionable insights for investors and analysts.
@@ -58,6 +57,24 @@ cd client
 npm run dev
 # Visit http://localhost:3001
 
+# OR Start Streamlit Dashboard
+streamlit run streamlit_app.py
+# Visit http://localhost:8501
+```
+
+### 3. **Use System Manager**
+
+```sh
+# Full setup, training, and deployment
+./manage_system.sh
+
+# Available options:
+# 1. Setup & Install Dependencies
+# 2. Run Development Servers
+# 3. Run Streamlit Dashboard  
+# 4. Train & Evaluate Models
+```
+
 ---
 
 ## 🧠 AI & ML Models
@@ -83,10 +100,27 @@ npm run dev
   - Running Streamlit dashboard
   - Testing APIs
   - Training models
-  - Generating predictions
-  - Health checks & cleaning
 
 ---
 
+## 🚀 Deployment
+
+### **One-Click Deploy**
+- **Railway:** [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/royfin-ai?referralCode=alphasec)
+- **Netlify:** [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Rajdeep183/royfin_ai)
+
+### **Multi-Platform Script**
+```sh
+./deploy.sh railway    # Deploy to Railway
+./deploy.sh netlify    # Deploy to Netlify  
+./deploy.sh heroku     # Deploy to Heroku
+./deploy.sh all        # Deploy everywhere
+```
+
+### **Manual Deployment**
+- See [DEPLOY_WEB.md](DEPLOY_WEB.md) for web-based deployment guides
+- See [RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) for Railway-specific instructions
+
+---
 
 Made with ❤️ by Rajdeep Roy
