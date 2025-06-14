@@ -1,0 +1,9 @@
+.env
+.terraform*
+src-*
+terraform.tfstate*
+__pycache__
+*.png
+*.csv
+*.pth.*
+*.pkl

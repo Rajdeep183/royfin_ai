@@ -1,0 +1,23 @@
+# Render.com deployment configuration for RoyFin AI
+
+# Build settings
+build:
+  - cd client && npm install
+  - cd client && npm run build
+
+# Start command
+start: cd client && npm start
+
+# Environment settings
+env: node
+
+# Root directory
+rootDir: ./
+
+# Health check
+healthCheckPath: /api/health
+
+# Autoscaling (optional)
+scaling:
+  minInstances: 1
+  maxInstances: 3

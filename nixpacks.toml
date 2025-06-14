@@ -1,0 +1,24 @@
+# Nixpacks Configuration for RoyFin AI Next.js App
+# This tells Nixpacks to treat this as a Node.js/Next.js project
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x"]
+aptPkgs = ["python3", "python3-pip"]
+
+[phases.install]
+cmds = [
+  "cd client",
+  "npm ci --only-production=false"
+]
+
+[phases.build] 
+cmds = [
+  "cd client",
+  "npm run build"
+]
+
+[start]
+cmd = "cd client && npm start"
+
+[variables]
+NODE_ENV = "production"

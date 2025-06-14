@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY=${NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY}
+      - NEXT_PUBLIC_FINNHUB_API_KEY=${NEXT_PUBLIC_FINNHUB_API_KEY}
+      - NEXT_PUBLIC_POLYGON_API_KEY=${NEXT_PUBLIC_POLYGON_API_KEY}
+      - NEXT_PUBLIC_TWELVE_DATA_API_KEY=${NEXT_PUBLIC_TWELVE_DATA_API_KEY}
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: streamlit.Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - NODE_ENV=production
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
+
+  api:
+    build:
+      context: .
+      dockerfile: api.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}

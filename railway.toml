@@ -1,0 +1,26 @@
+# Railway Deployment Configuration for RoyFin AI
+# This file tells Railway how to deploy your Next.js application
+
+[build]
+  builder = "NIXPACKS"
+
+[deploy]
+  startCommand = "npm start"
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 10
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+# Railway will automatically detect and build your Next.js app
+[build.env]
+  NODE_VERSION = "18"
+  NPM_VERSION = "latest"
+
+# Health check configuration
+[healthcheck]
+  path = "/api/health"
+  port = 3000
+  intervalSeconds = 30
+  timeoutSeconds = 10
