@@ -102,14 +102,5 @@ streamlit run streamlit_app.py
   - Training models
 
 ---
-### **Multi-Platform Script**
-```sh
-./deploy.sh railway    # Deploy to Railway
-./deploy.sh netlify    # Deploy to Netlify  
-./deploy.sh heroku     # Deploy to Heroku
-./deploy.sh all        # Deploy everywhere
-```
-
----
 
 Made with ❤️ by Rajdeep Roy
