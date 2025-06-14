@@ -102,13 +102,6 @@ streamlit run streamlit_app.py
   - Training models
 
 ---
-
-## 🚀 Deployment
-
-### **One-Click Deploy**
-- **Railway:** [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/royfin-ai?referralCode=alphasec)
-- **Netlify:** [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Rajdeep183/royfin_ai)
-
 ### **Multi-Platform Script**
 ```sh
 ./deploy.sh railway    # Deploy to Railway
