@@ -117,10 +117,6 @@ streamlit run streamlit_app.py
 ./deploy.sh all        # Deploy everywhere
 ```
 
-### **Manual Deployment**
-- See [DEPLOY_WEB.md](DEPLOY_WEB.md) for web-based deployment guides
-- See [RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) for Railway-specific instructions
-
 ---
 
 Made with ❤️ by Rajdeep Roy
