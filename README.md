@@ -15,7 +15,6 @@ https://royfinai.vercel.app/predict
 - **Interactive Dashboard:** Modern Next.js/React UI with charts and analytics
 - **Streamlit App:** Python dashboard for rapid prototyping and analysis
 - **Cloud Functions:** Scalable model training and prediction APIs
-- **Multi-Platform Deployment:** Railway, Netlify, Heroku, DigitalOcean, Render
 - **Mobile Responsive:** Works on all devices
 
 ---
