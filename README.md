@@ -3,7 +3,11 @@
 RoyFin AI is a full-stack, production-ready platform for intelligent stock market forecasting. It combines advanced machine learning (LSTM, Transformer, Quantum-inspired, Ensemble), real-time data, and a modern web UI to deliver actionable insights for investors and analysts.
 
 ---
+## Live Demo
 
+https://royfinai.vercel.app/predict
+
+---
 ## 🌟 Features
 
 - **AI-Powered Predictions:** LSTM, Transformer, Quantum-inspired, and Ensemble models
