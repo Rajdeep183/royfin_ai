@@ -19,7 +19,7 @@ from typing import Tuple, List, Dict, Optional
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.decomposition import PCA
 import math
-
+import talib
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -235,74 +235,68 @@ class AdvancedStockLSTMModel(nn.Module):
         }
 
 def calculate_technical_indicators(df):
-    """Calculate comprehensive technical indicators without TA-Lib dependency"""
-    close = df['Close']
-    high = df['High']
-    low = df['Low']
-    volume = df['Volume']
-    
+    """Calculate comprehensive technical indicators using TA-Lib"""
+    close = df['Close'].values
+    high = df['High'].values
+    low = df['Low'].values
+    open_ = df['Open'].values
+    volume = df['Volume'].values
+
     # Moving averages
     for period in [5, 10, 20, 50, 100, 200]:
-        df[f'SMA_{period}'] = close.rolling(window=period).mean()
-        df[f'EMA_{period}'] = close.ewm(span=period).mean()
+        df[f'SMA_{period}'] = talib.SMA(close, timeperiod=period)
+        df[f'EMA_{period}'] = talib.EMA(close, timeperiod=period)
         df[f'Price_SMA_{period}_Ratio'] = close / df[f'SMA_{period}']
         df[f'Price_EMA_{period}_Ratio'] = close / df[f'EMA_{period}']
-    
+
     # Bollinger Bands
     for period in [10, 20, 50]:
-        sma = close.rolling(window=period).mean()
-        std = close.rolling(window=period).std()
-        df[f'BB_Upper_{period}'] = sma + (std * 2)
-        df[f'BB_Lower_{period}'] = sma - (std * 2)
-        df[f'BB_Width_{period}'] = (df[f'BB_Upper_{period}'] - df[f'BB_Lower_{period}']) / sma
-        df[f'BB_Position_{period}'] = (close - df[f'BB_Lower_{period}']) / (df[f'BB_Upper_{period}'] - df[f'BB_Lower_{period}'])
-    
+        upper, middle, lower = talib.BBANDS(close, timeperiod=period, nbdevup=2, nbdevdn=2)
+        df[f'BB_Upper_{period}'] = upper
+        df[f'BB_Lower_{period}'] = lower
+        df[f'BB_Width_{period}'] = (upper - lower) / middle
+        df[f'BB_Position_{period}'] = (close - lower) / (upper - lower)
+
     # RSI
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI_14'] = 100 - (100 / (1 + rs))
-    
+    df['RSI_14'] = talib.RSI(close, timeperiod=14)
+
     # MACD
-    exp1 = close.ewm(span=12).mean()
-    exp2 = close.ewm(span=26).mean()
-    df['MACD'] = exp1 - exp2
-    df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
-    df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
-    
+    macd, macdsignal, macdhist = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+    df['MACD'] = macd
+    df['MACD_Signal'] = macdsignal
+    df['MACD_Hist'] = macdhist
+
     # Stochastic Oscillator
-    lowest_low = low.rolling(window=14).min()
-    highest_high = high.rolling(window=14).max()
-    df['STOCH_K'] = 100 * ((close - lowest_low) / (highest_high - lowest_low))
-    df['STOCH_D'] = df['STOCH_K'].rolling(window=3).mean()
-    
+    slowk, slowd = talib.STOCH(high, low, close, fastk_period=14, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
+    df['STOCH_K'] = slowk
+    df['STOCH_D'] = slowd
+
     # Williams %R
-    df['WILLIAMS_R'] = -100 * ((highest_high - close) / (highest_high - lowest_low))
-    
+    df['WILLIAMS_R'] = talib.WILLR(high, low, close, timeperiod=14)
+
     # Rate of Change
-    df['ROC_10'] = ((close - close.shift(10)) / close.shift(10)) * 100
-    df['ROC_20'] = ((close - close.shift(20)) / close.shift(20)) * 100
-    
+    df['ROC_10'] = talib.ROC(close, timeperiod=10)
+    df['ROC_20'] = talib.ROC(close, timeperiod=20)
+
     # Momentum
-    df['MOM_10'] = close - close.shift(10)
-    df['MOM_20'] = close - close.shift(20)
-    
+    df['MOM_10'] = talib.MOM(close, timeperiod=10)
+    df['MOM_20'] = talib.MOM(close, timeperiod=20)
+
     # Average True Range
-    high_low = high - low
-    high_close = np.abs(high - close.shift())
-    low_close = np.abs(low - close.shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = ranges.max(axis=1)
-    df['ATR_14'] = true_range.rolling(window=14).mean()
-    
+    df['ATR_14'] = talib.ATR(high, low, close, timeperiod=14)
+
     # Volume indicators
-    df['Volume_SMA_10'] = volume.rolling(window=10).mean()
+    df['Volume_SMA_10'] = talib.SMA(volume, timeperiod=10)
     df['Volume_Ratio'] = volume / df['Volume_SMA_10']
-    
-    # On Balance Volume (simplified)
-    df['OBV'] = (np.sign(close.diff()) * volume).fillna(0).cumsum()
-    
+
+    # On Balance Volume
+    df['OBV'] = talib.OBV(close, volume)
+
+    # Stochastic RSI using TA-Lib
+    stochrsi_k, stochrsi_d = talib.STOCHRSI(df['Close'].values, timeperiod=14, fastk_period=3, fastd_period=3, fastd_matype=0)
+    df['STOCHRSI_K'] = stochrsi_k
+    df['STOCHRSI_D'] = stochrsi_d
+
     return df
 
 class AdvancedStockPredictor:
