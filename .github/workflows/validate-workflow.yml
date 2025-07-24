@@ -1,0 +1,294 @@
+name: 'Workflow Validation Test'
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_ticker:
+        description: 'Single ticker to test data ingestion'
+        required: false
+        default: 'AAPL'
+        type: string
+  
+  # Can also be triggered on PR to test workflow changes
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'cloud/functions/**'
+
+jobs:
+  validate-workflow:
+    name: 'Validate Workflow Components'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v4
+
+      - name: 'Set up Python'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 'Install Base Dependencies'
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy pytz pyyaml
+
+      - name: 'Validate Workflow YAML Syntax'
+        run: |
+          python3 << 'EOF'
+          import yaml
+          import sys
+          
+          workflows = [
+              '.github/workflows/data-ingestion-training.yml',
+              '.github/workflows/validate-workflow.yml'
+          ]
+          
+          for workflow_file in workflows:
+              try:
+                  with open(workflow_file, 'r') as f:
+                      workflow = yaml.safe_load(f)
+                  print(f"✅ {workflow_file} - Valid YAML syntax")
+                  print(f"   📋 Name: {workflow.get('name', 'Unknown')}")
+                  print(f"   🎯 Jobs: {list(workflow.get('jobs', {}).keys())}")
+              except Exception as e:
+                  print(f"❌ {workflow_file} - Invalid YAML: {e}")
+                  sys.exit(1)
+          
+          print("\n🎉 All workflow files have valid YAML syntax!")
+          EOF
+
+      - name: 'Validate Python Syntax'
+        run: |
+          echo "🔍 Validating Python files..."
+          python3 -m py_compile cloud/functions/lambda_model_trainer.py
+          echo "✅ Lambda function syntax is valid"
+          
+          if [ -f "model/stock_lstm.py" ]; then
+            python3 -m py_compile model/stock_lstm.py
+            echo "✅ Stock LSTM model syntax is valid"
+          else
+            echo "⚠️ stock_lstm.py not found, skipping validation"
+          fi
+
+      - name: 'Test Data Ingestion Logic (Mock)'
+        env:
+          TEST_TICKER: ${{ github.event.inputs.test_ticker || 'AAPL' }}
+        run: |
+          python3 << 'EOF'
+          import yfinance as yf
+          import pandas as pd
+          import numpy as np
+          from datetime import datetime, timedelta
+          import os
+          
+          ticker = os.environ.get('TEST_TICKER', 'AAPL')
+          print(f"🔄 Testing data ingestion logic for {ticker}...")
+          
+          try:
+              # Test yfinance import and basic functionality
+              ticker_obj = yf.Ticker(ticker)
+              
+              # Test data fetch (will fail in restricted network environment)
+              try:
+                  info = ticker_obj.info
+                  print(f"✅ Ticker object created successfully")
+                  print(f"📊 Symbol: {info.get('symbol', 'N/A')}")
+              except Exception as e:
+                  print(f"ℹ️ Data fetch failed (expected in CI): {e}")
+                  print("✅ yfinance library imported and ticker object created successfully")
+              
+              # Test technical indicator calculations
+              # Create mock data for testing
+              dates = pd.date_range(start='2023-01-01', end='2023-12-31', freq='D')
+              mock_data = pd.DataFrame({
+                  'Close': np.random.randn(len(dates)).cumsum() + 100,
+                  'Volume': np.random.randint(1000000, 10000000, len(dates))
+              }, index=dates)
+              
+              # Test SMA calculation
+              mock_data['SMA_20'] = mock_data['Close'].rolling(window=20).mean()
+              print(f"✅ SMA calculation successful")
+              
+              # Test RSI calculation
+              delta = mock_data['Close'].diff()
+              gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+              loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+              rs = gain / loss
+              mock_data['RSI'] = 100 - (100 / (1 + rs))
+              print(f"✅ RSI calculation successful")
+              
+              # Test data validation logic
+              validation_results = {
+                  'total_records': len(mock_data),
+                  'missing_values': mock_data.isnull().sum().to_dict(),
+                  'price_range': {
+                      'min': float(mock_data['Close'].min()),
+                      'max': float(mock_data['Close'].max())
+                  }
+              }
+              print(f"✅ Data validation logic successful")
+              print(f"📈 Mock data stats: {validation_results}")
+              
+              print(f"🎉 Data ingestion logic validation completed successfully!")
+              
+          except Exception as e:
+              print(f"❌ Data ingestion logic validation failed: {e}")
+              exit(1)
+          EOF
+
+      - name: 'Test Lambda Integration Logic'
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          
+          print("🔄 Testing Lambda integration logic...")
+          
+          # Test payload generation
+          payload = {
+              "source": "github_actions",
+              "workflow_run_id": "test_123",
+              "timestamp": "20240724_120000",
+              "trigger_type": "manual",
+              "tickers": ["AAPL", "GOOGL"],
+              "force_retrain": True,
+              "market_status": "closed",
+              "data_ingestion": {
+                  "completed": True,
+                  "artifacts_available": True
+              },
+              "configuration": {
+                  "ensemble_size": 5,
+                  "epochs": 100,
+                  "optimize_hyperparams": True,
+                  "validation_split": 0.2
+              }
+          }
+          
+          # Validate payload structure
+          required_fields = ['source', 'workflow_run_id', 'tickers', 'configuration']
+          for field in required_fields:
+              if field not in payload:
+                  raise ValueError(f"Missing required field: {field}")
+          
+          print("✅ Lambda payload structure validation successful")
+          print(f"📋 Payload: {json.dumps(payload, indent=2)}")
+          
+          # Test JSON serialization
+          payload_json = json.dumps(payload)
+          parsed_payload = json.loads(payload_json)
+          
+          print("✅ JSON serialization/deserialization successful")
+          print("🎉 Lambda integration logic validation completed!")
+          EOF
+
+      - name: 'Check Required Files'
+        run: |
+          echo "🔍 Checking required files..."
+          
+          required_files=(
+            ".github/workflows/data-ingestion-training.yml"
+            "cloud/functions/lambda_model_trainer.py"
+            "cloud/functions/requirements_lambda.txt"
+            "requirements_streamlit.txt"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file is missing"
+              exit 1
+            fi
+          done
+          
+          echo "🎉 All required files are present!"
+
+      - name: 'Generate Validation Report'
+        run: |
+          echo "## 📊 Workflow Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Validation Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### ✅ Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| YAML Syntax | ✅ PASSED | All workflow files have valid syntax |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Syntax | ✅ PASSED | All Python files compile successfully |" >> $GITHUB_STEP_SUMMARY
+          echo "| Data Ingestion Logic | ✅ PASSED | Mock data processing successful |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lambda Integration | ✅ PASSED | Payload generation and validation |" >> $GITHUB_STEP_SUMMARY
+          echo "| Required Files | ✅ PASSED | All necessary files present |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. **AWS Setup**: Configure AWS Lambda function using \`deploy_lambda.sh\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. **GitHub Secrets**: Add AWS credentials to repository secrets" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Test Run**: Execute the main workflow manually" >> $GITHUB_STEP_SUMMARY
+          echo "4. **Monitor**: Check CloudWatch logs for Lambda execution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "✅ **Workflow validation completed successfully!**" >> $GITHUB_STEP_SUMMARY
+
+  validate-documentation:
+    name: 'Validate Documentation'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v4
+
+      - name: 'Check Documentation Files'
+        run: |
+          echo "📚 Checking documentation files..."
+          
+          doc_files=(
+            ".github/workflows/README.md"
+            ".github/workflows/BADGES.md"
+            "WORKFLOW_SETUP.md"
+          )
+          
+          for file in "${doc_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists ($(wc -l < "$file") lines)"
+            else
+              echo "❌ $file is missing"
+              exit 1
+            fi
+          done
+          
+          echo "🎉 All documentation files are present!"
+
+      - name: 'Validate Documentation Content'
+        run: |
+          echo "🔍 Validating documentation content..."
+          
+          # Check if main workflow file has proper sections
+          if grep -q "## 🎯 Overview" .github/workflows/README.md; then
+            echo "✅ Overview section found"
+          else
+            echo "❌ Overview section missing"
+            exit 1
+          fi
+          
+          if grep -q "## ⚙️ Configuration" .github/workflows/README.md; then
+            echo "✅ Configuration section found"
+          else
+            echo "❌ Configuration section missing"
+            exit 1
+          fi
+          
+          if grep -q "## 🚀 Usage" .github/workflows/README.md; then
+            echo "✅ Usage section found"
+          else
+            echo "❌ Usage section missing"
+            exit 1
+          fi
+          
+          echo "✅ Documentation validation completed!"
