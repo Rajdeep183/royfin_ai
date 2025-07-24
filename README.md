@@ -1,5 +1,7 @@
 # 🚀 RoyFin AI - Next-Generation Stock Prediction Platform
 
+[![Model Training](https://img.shields.io/badge/model%20training-automated-brightgreen?style=flat-square&logo=github)](https://github.com/Rajdeep183/royfin_ai/actions/workflows/retrain.yml)
+
 RoyFin AI is a full-stack, production-ready platform for intelligent stock market forecasting. It combines advanced machine learning (LSTM, Transformer, Quantum-inspired, Ensemble), real-time data, and a modern web UI to deliver actionable insights for investors and analysts.
 
 ---
@@ -11,11 +13,43 @@ https://royfinai.vercel.app/predict
 ## 🌟 Features
 
 - **AI-Powered Predictions:** LSTM, Transformer, Quantum-inspired, and Ensemble models
+- **Automated Training:** Nightly model retraining with GitHub Actions
 - **Real-Time Data:** Live price updates, earnings, and market sentiment
 - **Interactive Dashboard:** Modern Next.js/React UI with charts and analytics
 - **Streamlit App:** Python dashboard for rapid prototyping and analysis
 - **Cloud Functions:** Scalable model training and prediction APIs
+- **AWS Integration:** S3 model storage, Lambda deployment, CloudWatch monitoring
 - **Mobile Responsive:** Works on all devices
+
+---
+
+## 🔄 Automated Model Training
+
+RoyFin AI features a sophisticated automated training pipeline that runs nightly:
+
+### 🕐 Schedule
+- **Nightly**: 18:30 UTC (00:00 IST) on weekdays
+- **Manual**: On-demand via GitHub Actions
+
+### 📊 Data Sources
+- **US Stocks**: AAPL, MSFT, GOOGL, TSLA, META, NVDA, etc.
+- **Indian Stocks**: RELIANCE.NS, TCS.NS, HDFCBANK.NS, etc.
+- **Market Indices**: SPY, QQQ, ^GSPC, ^DJI, ^IXIC, etc.
+- **Volatility**: ^VIX, ^VXN, ^RVX
+
+### 🚀 Workflow Features
+- **Smart Scheduling**: Market-aware execution that respects trading hours
+- **Data Validation**: Quality checks for completeness, freshness, and accuracy
+- **Parallel Training**: Concurrent model training for multiple tickers
+- **AWS Integration**: Automated S3 uploads and Lambda function updates
+- **Notifications**: Slack alerts with comprehensive status reporting
+- **Performance Monitoring**: CloudWatch metrics and deployment summaries
+
+### 📈 Manual Trigger
+Trigger custom training via GitHub Actions with:
+- Custom ticker lists (e.g., "AAPL,MSFT,GOOGL,TSLA")
+- Force retrain option
+- Validation bypass for testing
 
 ---
 
@@ -23,11 +57,15 @@ https://royfinai.vercel.app/predict
 
 ```
 .
-├── client/           # Next.js frontend (UI, API routes, components)
-├── cloud/            # Cloud functions (model training, prediction APIs)
-├── lib/              # Advanced ML/AI modules (TypeScript)
-├── model/            # Python ML models, training scripts, requirements
-├── streamlit_app.py  # Streamlit dashboard (Python)
+├── client/                 # Next.js frontend (UI, API routes, components)
+├── cloud/                  # Cloud functions (model training, prediction APIs)
+├── .github/workflows/      # GitHub Actions automated training pipeline
+├── scripts/                # Data ingestion, validation, and deployment scripts
+├── config/                 # Configuration files for data sources and training
+├── lib/                    # Advanced ML/AI modules (TypeScript)
+├── model/                  # Python ML models, training scripts, requirements
+├── streamlit_app.py        # Streamlit dashboard (Python)
+└── DEPLOYMENT_GUIDE.md     # Comprehensive deployment documentation
 ├── manage_system.sh  # Full system management script
 ├── deploy.sh         # Multi-platform deployment script
 ├── requirements_streamlit.txt  # Python requirements for Streamlit
