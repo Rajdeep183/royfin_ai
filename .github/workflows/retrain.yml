@@ -1,0 +1,292 @@
+name: Nightly Model Retraining
+
+on:
+  schedule:
+    # Run at 18:30 UTC (00:00 IST) on weekdays
+    - cron: '30 18 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Comma-separated list of tickers to train (default: AAPL,MSFT,GOOGL,TSLA,RELIANCE.NS)'
+        required: false
+        default: 'AAPL,MSFT,GOOGL,TSLA,RELIANCE.NS'
+      force_retrain:
+        description: 'Force retraining even if data is unchanged'
+        type: boolean
+        required: false
+        default: false
+      skip_validation:
+        description: 'Skip data validation checks'
+        type: boolean
+        required: false
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  AWS_REGION: 'us-east-1'
+  S3_BUCKET: ${{ secrets.S3_BUCKET }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+
+jobs:
+  data-ingestion:
+    runs-on: ubuntu-latest
+    outputs:
+      data-hash: ${{ steps.data-check.outputs.hash }}
+      market-open: ${{ steps.market-check.outputs.open }}
+      tickers: ${{ steps.prepare.outputs.tickers }}
+      tickers-json: ${{ steps.prepare.outputs.tickers_json }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_streamlit.txt
+        pip install -r model/requirements.txt
+
+    - name: Prepare ticker list
+      id: prepare
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          TICKERS="${{ github.event.inputs.tickers }}"
+        else
+          TICKERS="AAPL,MSFT,GOOGL,TSLA,RELIANCE.NS,SPY"
+        fi
+        echo "tickers=$TICKERS" >> $GITHUB_OUTPUT
+        echo "Processing tickers: $TICKERS"
+        
+        # Convert to JSON array for matrix strategy
+        TICKERS_JSON=$(echo $TICKERS | sed 's/,/\",\"/g' | sed 's/^/[\"/' | sed 's/$/\"]/')
+        echo "tickers_json=$TICKERS_JSON" >> $GITHUB_OUTPUT
+        echo "Tickers JSON: $TICKERS_JSON"
+
+    - name: Check market hours and trading days
+      id: market-check
+      run: |
+        python scripts/market_hours_check.py
+        echo "Market check completed"
+
+    - name: Run data ingestion
+      id: data-ingestion
+      run: |
+        python scripts/data_ingestion.py \
+          --tickers "${{ steps.prepare.outputs.tickers }}" \
+          --output-dir "./data" \
+          --include-indices \
+          --include-volatility
+        echo "Data ingestion completed"
+
+    - name: Validate data quality
+      if: ${{ !github.event.inputs.skip_validation }}
+      run: |
+        python scripts/validate_data.py \
+          --data-dir "./data" \
+          --tickers "${{ steps.prepare.outputs.tickers }}" \
+          --min-days 200 \
+          --max-missing-days 5
+
+    - name: Calculate data hash
+      id: data-check
+      run: |
+        HASH=$(find ./data -name "*.csv" -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
+        echo "hash=$HASH" >> $GITHUB_OUTPUT
+        echo "Current data hash: $HASH"
+
+    - name: Upload data artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: market-data
+        path: ./data/
+        retention-days: 7
+
+    - name: Cache data for training
+      uses: actions/cache@v3
+      with:
+        path: ./data/
+        key: market-data-${{ steps.data-check.outputs.hash }}
+        restore-keys: |
+          market-data-
+
+  model-training:
+    needs: data-ingestion
+    runs-on: ubuntu-latest
+    if: ${{ needs.data-ingestion.outputs.market-open == 'true' || github.event.inputs.force_retrain == 'true' }}
+    strategy:
+      matrix:
+        ticker: ${{ fromJson(needs.data-ingestion.outputs.tickers-json) }}
+      fail-fast: false
+      max-parallel: 2
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_streamlit.txt
+        pip install -r model/requirements.txt
+
+    - name: Download data artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: market-data
+        path: ./data/
+
+    - name: Check for existing model
+      id: model-check
+      run: |
+        python scripts/check_model_freshness.py \
+          --ticker "${{ matrix.ticker }}" \
+          --data-hash "${{ needs.data-ingestion.outputs.data-hash }}" \
+          --s3-bucket "${{ env.S3_BUCKET }}"
+
+    - name: Train model
+      if: ${{ steps.model-check.outputs.needs-training == 'true' || github.event.inputs.force_retrain == 'true' }}
+      run: |
+        python model/stock_lstm.py train \
+          --ticker "${{ matrix.ticker }}" \
+          --start_date "2020-01-01" \
+          --optimize_hyperparams true \
+          --ensemble_size 3 \
+          --epochs 100 \
+          --data_dir "./data" \
+          --output_format json
+      timeout-minutes: 120
+
+    - name: Validate trained model
+      if: ${{ steps.model-check.outputs.needs-training == 'true' || github.event.inputs.force_retrain == 'true' }}
+      run: |
+        python scripts/validate_model.py \
+          --ticker "${{ matrix.ticker }}" \
+          --min-accuracy 0.6 \
+          --test-predictions
+
+    - name: Upload model to S3
+      if: ${{ steps.model-check.outputs.needs-training == 'true' || github.event.inputs.force_retrain == 'true' }}
+      run: |
+        python scripts/upload_model_s3.py \
+          --ticker "${{ matrix.ticker }}" \
+          --bucket "${{ env.S3_BUCKET }}" \
+          --data-hash "${{ needs.data-ingestion.outputs.data-hash }}"
+
+    - name: Upload model artifacts
+      if: ${{ steps.model-check.outputs.needs-training == 'true' || github.event.inputs.force_retrain == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: trained-model-${{ matrix.ticker }}
+        path: |
+          ./models/${{ matrix.ticker }}_*.pkl
+          ./models/${{ matrix.ticker }}_*.json
+        retention-days: 30
+
+  deployment:
+    needs: [data-ingestion, model-training]
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.data-ingestion.result == 'success' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install AWS CLI and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install boto3 awscli
+        pip install -r requirements_streamlit.txt
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update Lambda function
+      if: ${{ env.LAMBDA_FUNCTION_NAME != '' }}
+      run: |
+        python scripts/update_lambda.py \
+          --function-name "${{ env.LAMBDA_FUNCTION_NAME }}" \
+          --tickers "${{ needs.data-ingestion.outputs.tickers }}" \
+          --data-hash "${{ needs.data-ingestion.outputs.data-hash }}"
+
+    - name: Send CloudWatch metrics
+      run: |
+        python scripts/send_metrics.py \
+          --workflow-run-id "${{ github.run_id }}" \
+          --tickers "${{ needs.data-ingestion.outputs.tickers }}" \
+          --training-results "${{ needs.model-training.result }}"
+
+    - name: Create deployment summary
+      run: |
+        python scripts/create_summary.py \
+          --workflow-run-id "${{ github.run_id }}" \
+          --tickers "${{ needs.data-ingestion.outputs.tickers }}" \
+          --data-hash "${{ needs.data-ingestion.outputs.data-hash }}" \
+          --results "${{ needs.model-training.result }}"
+
+  notification:
+    needs: [data-ingestion, model-training, deployment]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install notification dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests boto3
+
+    - name: Send success notification
+      if: ${{ needs.deployment.result == 'success' }}
+      run: |
+        python scripts/send_notification.py \
+          --status "success" \
+          --workflow-run-id "${{ github.run_id }}" \
+          --tickers "${{ needs.data-ingestion.outputs.tickers }}" \
+          --webhook-url "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+    - name: Send failure notification
+      if: ${{ needs.data-ingestion.result == 'failure' || needs.model-training.result == 'failure' || needs.deployment.result == 'failure' }}
+      run: |
+        python scripts/send_notification.py \
+          --status "failure" \
+          --workflow-run-id "${{ github.run_id }}" \
+          --tickers "${{ needs.data-ingestion.outputs.tickers }}" \
+          --error-details "${{ toJson(needs) }}" \
+          --webhook-url "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+    - name: Update workflow status badge
+      run: |
+        python scripts/update_status_badge.py \
+          --status "${{ job.status }}" \
+          --workflow-run-id "${{ github.run_id }}"
