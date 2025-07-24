@@ -1,0 +1,187 @@
+# Data Sources Configuration for RoyFin AI
+
+# US Market Stocks
+us_stocks:
+  AAPL: "Apple Inc."
+  MSFT: "Microsoft Corporation"
+  GOOGL: "Alphabet Inc."
+  AMZN: "Amazon.com Inc."
+  TSLA: "Tesla Inc."
+  META: "Meta Platforms Inc."
+  NVDA: "NVIDIA Corporation"
+  NFLX: "Netflix Inc."
+  AMD: "Advanced Micro Devices"
+  CRM: "Salesforce Inc."
+  PYPL: "PayPal Holdings Inc."
+  ADBE: "Adobe Inc."
+  INTC: "Intel Corporation"
+  CSCO: "Cisco Systems Inc."
+  PEP: "PepsiCo Inc."
+  KO: "The Coca-Cola Company"
+  WMT: "Walmart Inc."
+  JNJ: "Johnson & Johnson"
+  V: "Visa Inc."
+  MA: "Mastercard Inc."
+
+# Market Indices
+market_indices:
+  SPY: "SPDR S&P 500 ETF"
+  ^GSPC: "S&P 500 Index"
+  ^DJI: "Dow Jones Industrial Average"
+  ^IXIC: "NASDAQ Composite"
+  ^RUT: "Russell 2000"
+  QQQ: "Invesco QQQ Trust"
+  IWM: "iShares Russell 2000 ETF"
+  VTI: "Vanguard Total Stock Market ETF"
+  VOO: "Vanguard S&P 500 ETF"
+
+# Volatility Indices
+volatility_indices:
+  ^VIX: "CBOE Volatility Index"
+  ^VXN: "NASDAQ 100 Volatility Index"
+  ^RVX: "Russell 2000 Volatility Index"
+
+# Indian Market Stocks
+indian_stocks:
+  RELIANCE.NS: "Reliance Industries Limited"
+  TCS.NS: "Tata Consultancy Services"
+  HDFCBANK.NS: "HDFC Bank Limited"
+  INFY.NS: "Infosys Limited"
+  HINDUNILVR.NS: "Hindustan Unilever Limited"
+  ICICIBANK.NS: "ICICI Bank Limited"
+  SBIN.NS: "State Bank of India"
+  BHARTIARTL.NS: "Bharti Airtel Limited"
+  ITC.NS: "ITC Limited"
+  KOTAKBANK.NS: "Kotak Mahindra Bank"
+  LT.NS: "Larsen & Toubro Limited"
+  HCLTECH.NS: "HCL Technologies Limited"
+  AXISBANK.NS: "Axis Bank Limited"
+  MARUTI.NS: "Maruti Suzuki India Limited"
+  SUNPHARMA.NS: "Sun Pharmaceutical Industries"
+
+# Indian Market Indices
+indian_indices:
+  ^NSEI: "NIFTY 50"
+  ^BSESN: "BSE SENSEX"
+  ^NSEBANK: "NIFTY Bank"
+  ^NSEIT: "NIFTY IT"
+
+# Sector ETFs
+sector_etfs:
+  XLK: "Technology Select Sector SPDR Fund"
+  XLF: "Financial Select Sector SPDR Fund"
+  XLE: "Energy Select Sector SPDR Fund"
+  XLV: "Health Care Select Sector SPDR Fund"
+  XLI: "Industrial Select Sector SPDR Fund"
+  XLP: "Consumer Staples Select Sector SPDR Fund"
+  XLY: "Consumer Discretionary Select Sector SPDR Fund"
+  XLU: "Utilities Select Sector SPDR Fund"
+  XLB: "Materials Select Sector SPDR Fund"
+  XLRE: "Real Estate Select Sector SPDR Fund"
+
+# Cryptocurrency (if supported)
+crypto:
+  BTC-USD: "Bitcoin"
+  ETH-USD: "Ethereum"
+  
+# Commodities
+commodities:
+  GLD: "SPDR Gold Shares"
+  SLV: "iShares Silver Trust"
+  USO: "United States Oil Fund"
+  DBA: "Invesco DB Agriculture Fund"
+
+# Default configuration
+default_config:
+  data_sources:
+    - us_stocks
+    - market_indices
+    - volatility_indices
+  
+  # Data fetching parameters
+  fetch_params:
+    interval: "1d"
+    period: "3y"  # 3 years of historical data
+    auto_adjust: true
+    prepost: true
+    repair: true
+  
+  # Feature engineering
+  features:
+    basic_technical: true
+    advanced_technical: true
+    volume_features: true
+    volatility_features: true
+    momentum_features: true
+  
+  # Validation parameters
+  validation:
+    min_days: 200
+    max_missing_percentage: 5.0
+    max_age_days: 7
+  
+  # Training parameters
+  training:
+    sequence_length: 60
+    ensemble_size: 3
+    epochs: 100
+    batch_size: 32
+    learning_rate: 0.001
+    dropout: 0.2
+  
+  # Model validation
+  model_validation:
+    min_accuracy: 0.6
+    performance_threshold: 0.7
+    max_model_age_hours: 72
+
+# Market hours (for scheduling)
+market_hours:
+  US:
+    timezone: "America/New_York"
+    trading_days: [0, 1, 2, 3, 4]  # Monday to Friday
+    open: "09:30"
+    close: "16:00"
+  
+  INDIA:
+    timezone: "Asia/Kolkata"
+    trading_days: [0, 1, 2, 3, 4]  # Monday to Friday
+    open: "09:15"
+    close: "15:30"
+
+# Notification settings
+notifications:
+  slack:
+    enabled: true
+    channels:
+      - "#royfin-alerts"
+      - "#model-training"
+  
+  email:
+    enabled: false
+    recipients: []
+  
+  # Notification triggers
+  triggers:
+    on_success: true
+    on_failure: true
+    on_partial_failure: true
+    on_data_issues: true
+
+# AWS Configuration
+aws:
+  region: "us-east-1"
+  s3:
+    bucket_prefix: "royfin-ai"
+    model_path: "models/"
+    data_path: "data/"
+    reports_path: "reports/"
+  
+  lambda:
+    function_name: "royfin-ai-predictor"
+    timeout: 300
+    memory: 1024
+  
+  cloudwatch:
+    namespace: "RoyFinAI/ModelTraining"
+    log_group: "/aws/lambda/royfin-ai"
